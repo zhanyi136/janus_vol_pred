@@ -32,32 +32,32 @@ execution:
   # 币种列表
   symbols:
     - XRPUSDT
-    - DOGEUSDT
-    - BNBUSDT
-    - ZECUSDT
-    - SUIUSDT
-    - ADAUSDT
-    - NEARUSDT
-    - AVAXUSDT
+    # - DOGEUSDT
+    # - BNBUSDT
+    # - ZECUSDT
+    # - SUIUSDT
+    # - ADAUSDT
+    # - NEARUSDT
+    # - AVAXUSDT
 
-    - BCHUSDT
-    - FILUSDT
-    - LINKUSDT
-    - AAVEUSDT
-    - ENAUSDT
-    - LTCUSDT
-    - 1000SHIBUSDT
-    - ARBUSDT
+    # - BCHUSDT
+    # - FILUSDT
+    # - LINKUSDT
+    # - AAVEUSDT
+    # - ENAUSDT
+    # - LTCUSDT
+    # - 1000SHIBUSDT
+    # - ARBUSDT
 
   # 处理日期范围
   # start_date: "2025-12-01"
-  start_date: "2026-01-01"
-  end_date: "2026-04-01"
+  start_date: "2025-01-01"
+  end_date: "2026-03-31"
   # end_date: "2026-03-11"
 
   use_prev_day: True  # 是否使用前一天数据进行特征计算
   incremental_features_label: True  # 是否启用增量更新（跳过已完成的任务）
-  incremental_features_max_retries: 3  # 增量更新的最大重试次数
+  incremental_features_max_retries: 2  # 增量更新的最大重试次数
 
 # 采样配置
 sampling:
@@ -105,7 +105,7 @@ train:
 
   # LightGBM参数
   lgb_params:
-    n_jobs: 30
+    n_jobs: 20
     objective: "regression"  # 改回回归 (MSE)，拟合正态分布最准
     num_leaves: 64           # 增加叶子数
     max_depth: 8             # 限制最大深度
@@ -119,7 +119,7 @@ train:
   incremental: True
 
   # 最大重试次数
-  max_retries: 3
+  max_retries: 2
 
 # 多进程配置
 multiprocess:
