@@ -7,6 +7,8 @@ train.py - 波动率预测模型训练脚本
 """
 
 from __future__ import annotations
+import os
+os.environ["POLARS_MAX_THREADS"] = "20"
 
 import json
 from datetime import datetime, timedelta

@@ -13,18 +13,19 @@ features.py - 波动率预测特征计算模块
 
 from __future__ import annotations
 
-import os
-os.environ["POLARS_MAX_THREADS"] = "20"
 import json
+import os
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import numpy as np
+os.environ["POLARS_MAX_THREADS"] = "1"
 import polars as pl
 from numba import njit
 from loguru import logger
 import zstandard as zstd
 from itertools import combinations
+from concurrent.futures import ProcessPoolExecutor
 
 def generate_time_grid(
     date: str,
