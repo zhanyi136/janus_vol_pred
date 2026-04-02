@@ -1,0 +1,127 @@
+# ============================================================
+# 波动率预测 - 生产环境配置文件
+# ============================================================
+
+# 数据路径
+paths:
+  # 原始数据根目录
+  data_root: "/data/market_data/binance/future"
+
+  # 输出根目录
+  output_root: "/data/sigma/zzy/janus/results/vol_pred_prod"
+
+  # 因子和标签数据保存路径
+  features_output_dir: "features"
+
+  # binance交易规范
+  binance_assets: "/data/sigma/sigma/basic/binance_assets.json"
+
+  # 日志根目录
+  log_root: "/home/zhangzhanyi/workspace/janus_vol_pred/janus_vol_pred/logs"
+
+# 日志配置
+logging:
+  # 日志级别
+  level: "INFO"
+
+# 运行配置
+execution:
+
+  instrument_type: "future"
+
+  # 币种列表
+  symbols:
+    - XRPUSDT
+    - DOGEUSDT
+    - BNBUSDT
+    - ZECUSDT
+    - SUIUSDT
+    - ADAUSDT
+    - NEARUSDT
+    - AVAXUSDT
+
+    - BCHUSDT
+    - FILUSDT
+    - LINKUSDT
+    - AAVEUSDT
+    - ENAUSDT
+    - LTCUSDT
+    - 1000SHIBUSDT
+    - ARBUSDT
+
+  # 处理日期范围
+  # start_date: "2025-12-01"
+  start_date: "2026-01-01"
+  end_date: "2026-04-01"
+  # end_date: "2026-03-11"
+
+  use_prev_day: True  # 是否使用前一天数据进行特征计算
+  incremental_features_label: True  # 是否启用增量更新（跳过已完成的任务）
+  incremental_features_max_retries: 3  # 增量更新的最大重试次数
+
+# 采样配置
+sampling:
+  # 采样频率 (纳秒)
+  interval_ns: 20_000_000  # 20ms = 20,000,000 ns
+
+  # 预热期 (分钟) - 前N分钟数据丢弃
+  warmup_minutes: 0
+
+# 特征配置
+features:
+  # 波动率窗口 (分钟)
+  vol_windows:
+    - 1
+    - 3
+    - 5
+    - 10
+    - 15
+    - 30
+    - 60
+    - 120
+
+# 标签配置
+label:
+  # 标签的波动率窗口（分钟）
+  vol_window: 5
+
+# 训练配置
+train:
+  # 训练数据从哪个目录读取（features_label.py 的输出）
+  features_input_dir: "features"  # 相对于 base_output_root
+
+  # 训练输出目录（结果放这里）
+  results_output_dir: "results"
+
+  # 降采样频率
+  train_downsample_freq: 20_000_000
+
+  # 训练集天数
+  train_days: 7
+  # 验证集天数
+  val_days: 1
+  # 测试天数
+  test_days: 1
+
+  # LightGBM参数
+  lgb_params:
+    n_jobs: 30
+    objective: "regression"  # 改回回归 (MSE)，拟合正态分布最准
+    num_leaves: 64           # 增加叶子数
+    max_depth: 8             # 限制最大深度
+    learning_rate: 0.05      # 降低学习率
+    n_estimators: 1000       # 提高树的数量
+    min_data_in_leaf: 50     # 每叶最小样本数
+    feature_fraction: 0.8    # 特征采样
+    bagging_fraction: 0.8    # 数据采样
+
+  # 增量模式
+  incremental: True
+
+  # 最大重试次数
+  max_retries: 3
+
+# 多进程配置
+multiprocess:
+  # 并行处理的币种数
+  max_workers: 4
