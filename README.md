@@ -286,6 +286,12 @@ results/
 
 ### 手动传输命令
 
+单次传输指令
+```bash
+rsync -avz --mkpath   --include="*/"   --include="model.txt"   --include="quantile_transformer.pkl"   --include="feature_cols.json"   --exclude="*"   /data/sigma/zzy/janus/results/vol_pred_prod/results/2026-03-31/XRPUSDT/   root@54.64.180.220:/root/workspace/janus_vol_pred/results/2026-03-31/XRPUSDT/   -e "ssh -i ~/.ssh/jcd_aws_01/id_ed25519"
+```
+
+
 ```bash
 rsync -avz --mkpath \
   --include="*/" \

@@ -115,7 +115,7 @@ class RealtimeFeatureComputer:
             timestamp_ns: tradeTime × 1000（纳秒）
         """
         mid_price = (bid + ask) / 2.0
-        mid_tick = round(mid_price / self.tick_size) * self.tick_size
+        mid_tick = round(mid_price / self.tick_size, 1)
 
         mid_chg = 0.0 if self._prev_mid_tick is None else mid_tick - self._prev_mid_tick
         self._prev_mid_tick = mid_tick

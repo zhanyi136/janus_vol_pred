@@ -92,6 +92,7 @@ def sample_loop(
                     tick["tradeTime"] * 1000,  # 微秒 → 纳秒
                 )
 
+                # 统一格式
                 if features is None:
                     msg = {"timestamp": now_ns, "symbol": symbol, "status": "warmup"}
                     logger.debug(f"[{symbol}] 预热中 ({computers[symbol].buffer_count}/{computers[symbol]._warmup_ticks})")
@@ -101,15 +102,11 @@ def sample_loop(
                     if pred_vol is None:
                         msg = {"timestamp": now_ns, "symbol": symbol, "status": "no_model"}
                     else:
-                        msg = {
-                            "timestamp": now_ns,
-                            "symbol": symbol,
-                            "prediction": {"volatility": pred_vol},
-                        }
+                        msg = {"timestamp": now_ns, "symbol": symbol, "status": "ok", "volatility": pred_vol}
+                        logger.info(f"[{symbol}] pred_vol={pred_vol:.6f}")
 
                 sender.send(orjson.dumps(msg), flags=zmq.NOBLOCK)
-                if "prediction" in msg:
-                    logger.info(f"[{symbol}] pred_vol={msg['prediction']['volatility']:.6f}")
+
 
             except Exception as e:
                 logger.error(f"[{symbol}] 采样异常: {e}")
@@ -132,7 +129,7 @@ if __name__ == "__main__":
     sampling_cfg = config["sampling"]
     feat_cfg = config["features"]
     symbols: list[str] = config["realtime"]["symbols"]
-    results_dir = Path(__file__).parent.parent / "results"
+    results_dir = Path(config["realtime"]["results_dir"])
     interval_s = sampling_cfg["interval_ns"] / 1e9
 
     # 日志
