@@ -95,7 +95,6 @@ def sample_loop(
                 # 统一格式
                 if features is None:
                     msg = {"timestamp": now_ns, "symbol": symbol, "status": "warmup"}
-                    logger.debug(f"[{symbol}] 预热中 ({computers[symbol].buffer_count}/{computers[symbol]._warmup_ticks})")
                 else:
                     loaders[symbol].check_and_reload()
                     pred_vol = loaders[symbol].predict(features)
@@ -103,7 +102,7 @@ def sample_loop(
                         msg = {"timestamp": now_ns, "symbol": symbol, "status": "no_model"}
                     else:
                         msg = {"timestamp": now_ns, "symbol": symbol, "status": "ok", "volatility": pred_vol}
-                        logger.info(f"[{symbol}] pred_vol={pred_vol:.6f}")
+                logger.info(f"[PUSH] {msg}")
 
                 sender.send(orjson.dumps(msg), flags=zmq.NOBLOCK)
 
