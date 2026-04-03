@@ -221,3 +221,58 @@ poetry install
 
 poetry lock
 ```
+
+
+
+## 模型文件管理与传输
+
+### 目录结构
+
+模型文件存放在项目根目录的 `results/` 下：
+
+janus_vol_pred/          ← 项目根
+├── janus_vol_pred/      ← Python 代码包
+├── results/             ← 模型和结果（gitignore）
+│   └── {date}/
+│       └── {symbol}/
+│           ├── model.txt
+│           ├── quantile_transformer.pkl
+│           └── feature_cols.json
+└── pyproject.toml
+
+### 需要传输的文件
+
+每个 symbol 每天只需传三个文件：
+
+| 文件 | 大小 | 说明 |
+|------|------|------|
+| `model.txt` | 1~5 MB | LightGBM 树结构（即模型参数） |
+| `quantile_transformer.pkl` | < 100 KB | 分位数变换器 |
+| `feature_cols.json` | < 1 KB | 特征列名列表 |
+
+### 手动传输命令
+
+单次传输指令
+```bash
+rsync -avz --mkpath   --include="*/"   --include="model.txt"   --include="quantile_transformer.pkl"   --include="feature_cols.json"   --exclude="*"   /data/sigma/zzy/janus/results/vol_pred_prod/results/2026-03-31/XRPUSDT/   root@54.64.180.220:/root/workspace/janus_vol_pred/results/2026-03-31/XRPUSDT/   -e "ssh -i ~/.ssh/jcd_aws_01/id_ed25519"
+```
+
+#### 报错解决
+若报错：
+```text
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@         WARNING: UNPROTECTED PRIVATE KEY FILE!          @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+Permissions 0664 for '/home/zhangzhanyi/.ssh/jcd_aws_01/id_ed25519' are too open.
+It is required that your private key files are NOT accessible by others.
+This private key will be ignored.
+Load key "/home/zhangzhanyi/.ssh/jcd_aws_01/id_ed25519": bad permissions
+root@54.64.180.220: Permission denied (publickey,gssapi-keyex,gssapi-with-mic).
+rsync: connection unexpectedly closed (0 bytes received so far) [sender]
+rsync error: unexplained error (code 255) at io.c(232) [sender=3.2.7]
+```
+
+这是
+key 文件权限太开放了，修复一下：
+chmod 600 ~/.ssh/jcd_aws_01/id_ed25519
+然后重新跑 rsync。即可。
