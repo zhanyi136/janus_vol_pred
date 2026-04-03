@@ -169,13 +169,13 @@ def save_daily_results(
     
     r = train_result["results"][idx]
     
-    # 保存预测结果
-    res_df = pl.DataFrame({
-        "timestamp": r["timestamp"],
-        "y_true": r["y_true"],
-        "y_pred": r["y_pred"]
-    })
-    res_df.write_parquet(out_dir / "results.parquet")
+    # # 保存预测结果
+    # res_df = pl.DataFrame({
+    #     "timestamp": r["timestamp"],
+    #     "y_true": r["y_true"],
+    #     "y_pred": r["y_pred"]
+    # })
+    # res_df.write_parquet(out_dir / "results.parquet")
 
     # 同时保存一份 npz 格式
     np_results = np.zeros(len(r["timestamp"]), dtype=[

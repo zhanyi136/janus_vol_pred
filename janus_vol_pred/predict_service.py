@@ -36,6 +36,7 @@ def recv_loop(receiver: zmq.Socket) -> None:
     logger.info("接收线程启动")
     while True:
         try:
+            # 收到就用 orjson 解析成 Python dict
             msg = orjson.loads(receiver.recv())
 
             if msg.get("Event") == "symbol":
@@ -64,16 +65,32 @@ def sample_loop(
     symbols: list[str],
     computers: dict[str, RealtimeFeatureComputer],
     loaders: dict[str, ModelLoader],
-    interval_s: float,
+    interval_ns: int,
 ) -> None:
     logger.info("采样线程启动，Numba JIT 预热中...")
+    # Numba 的规则是：第一次调用时编译成机器码，之后就很快。所以在服务启动时用假数据提前编译，之后真实采样时就不会卡了。
     for computer in computers.values():
         computer.update(1.0, 1.0, 1)
+        computer._buffer[:] = 0.0       # 清空缓冲区内容
+        computer._count = 0
+        computer._head = 0
+        computer._prev_mid_tick = None
     logger.info("Numba JIT 预热完成")
 
+    interval_ns = int(interval_ns) # 整除时必须为整数
+
+    # 对齐到第一个规整时间点
+    now_ns = time.time_ns()
+    next_tick_ns = (now_ns // interval_ns + 1) * interval_ns
+
     while True:
-        t0 = time.perf_counter()
-        now_ns = time.time_ns()
+        # 等到规整时间点
+        wait_ns = next_tick_ns - time.time_ns()
+        if wait_ns > 0:
+            time.sleep(wait_ns / 1e9)
+
+        # 本轮的规整时间戳（用于 msg 的 timestamp 字段）
+        tick_ns = next_tick_ns
 
         for symbol in symbols:
             try:
@@ -94,26 +111,25 @@ def sample_loop(
 
                 # 统一格式
                 if features is None:
-                    msg = {"timestamp": now_ns, "symbol": symbol, "status": "warmup"}
+                    msg = {"timestamp": tick_ns, "symbol": symbol, "status": "warmup"}
                 else:
                     loaders[symbol].check_and_reload()
                     pred_vol = loaders[symbol].predict(features)
                     if pred_vol is None:
-                        msg = {"timestamp": now_ns, "symbol": symbol, "status": "no_model"}
+                        msg = {"timestamp": tick_ns, "symbol": symbol, "status": "no_model"}
                     else:
-                        msg = {"timestamp": now_ns, "symbol": symbol, "status": "ok", "volatility": pred_vol}
+                        msg = {"timestamp": tick_ns, "symbol": symbol, "status": "ok", "volatility": pred_vol}
                 logger.info(f"[PUSH] {msg}")
 
                 sender.send(orjson.dumps(msg), flags=zmq.NOBLOCK)
 
-
             except Exception as e:
                 logger.error(f"[{symbol}] 采样异常: {e}")
 
-        elapsed = time.perf_counter() - t0
-        sleep_time = interval_s - elapsed
-        if sleep_time > 0:
-            time.sleep(sleep_time)
+        # 计算下一个规整时间点（跳过已经过去的点）
+        now_ns = time.time_ns()
+        next_tick_ns = (now_ns // interval_ns + 1) * interval_ns
+
 
 
 # ============================================================
@@ -129,10 +145,10 @@ if __name__ == "__main__":
     feat_cfg = config["features"]
     symbols: list[str] = config["realtime"]["symbols"]
     results_dir = Path(config["realtime"]["results_dir"])
-    interval_s = sampling_cfg["interval_ns"] / 1e9
+    interval_ns = sampling_cfg["interval_ns"]
 
     # 日志
-    log_dir = Path(config["paths"]["log_root"]) / "predict_service"
+    log_dir = Path(config["realtime"]["log_dir"]) / "predict_service"
     log_dir.mkdir(parents=True, exist_ok=True)
     logger.add(
         str(log_dir / "{time:YYYYMMDD_HHmmss}.log"),
@@ -143,14 +159,14 @@ if __name__ == "__main__":
     )
 
     logger.info(f"启动预测服务 | symbols: {symbols}")
-    logger.info(f"采样间隔: {sampling_cfg['interval_ns'] // 1_000_000}ms | 预热: {rt_cfg['warmup_minutes']}min")
+    logger.info(f"采样间隔: {interval_ns // 1_000_000}ms | 预热: {rt_cfg['warmup_minutes']}min")
 
     # 初始化 RealtimeFeatureComputer（每个 symbol 独立）
     computers = {
         symbol: RealtimeFeatureComputer(
             tick_size=1.0,  # 占位，收到 symbol 消息后实时更新
             vol_windows=feat_cfg["vol_windows"],
-            interval_ns=sampling_cfg["interval_ns"],
+            interval_ns=interval_ns,
             warmup_minutes=rt_cfg["warmup_minutes"],
         )
         for symbol in symbols
@@ -169,7 +185,9 @@ if __name__ == "__main__":
     # ZeroMQ
     context = zmq.Context()
     receiver = context.socket(zmq.PULL)
+    # bind = 主动监听，等别人来连接。同事的程序 connect 到 5555，把数据推过来。
     receiver.bind(rt_cfg["zmq_recv_addr"])
+    # connect = 主动连接别人。Go 程序在 6666 上 bind 等待，我们把预测结果推过去。
     sender = context.socket(zmq.PUSH)
     sender.connect(rt_cfg["zmq_send_addr"])
     logger.info(f"ZeroMQ PULL bind: {rt_cfg['zmq_recv_addr']}")
@@ -179,4 +197,4 @@ if __name__ == "__main__":
     threading.Thread(target=recv_loop, args=(receiver,), daemon=True).start()
 
     # 主线程跑采样循环
-    sample_loop(sender, symbols, computers, loaders, interval_s)
+    sample_loop(sender, symbols, computers, loaders, interval_ns)

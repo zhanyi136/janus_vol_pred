@@ -106,7 +106,7 @@ train:
 
   # LightGBM参数
   lgb_params:
-    n_jobs: 30
+    n_jobs: 20
     objective: "regression"  # 改回回归 (MSE)，拟合正态分布最准
     num_leaves: 64           # 增加叶子数
     max_depth: 8             # 限制最大深度
@@ -130,6 +130,7 @@ multiprocess:
 
 realtime:
   results_dir: "/root/workspace/janus_vol_pred/results"
+  log_dir: "/root/workspace/janus_vol_pred/logs"
   zmq_recv_addr: "tcp://127.0.0.1:5555"
   zmq_send_addr: "tcp://127.0.0.1:6666"
   model_lookback_days: 30

@@ -91,11 +91,12 @@ class RealtimeFeatureComputer:
         self.tick_size = tick_size
         self.vol_windows = vol_windows
 
-        interval_ms = interval_ns // 1_000_000
-        ticks_per_min = 60 * 1000 // interval_ms
+        ticks_per_min = 60 * 1_000_000_000 // interval_ns
 
-        self._max_ticks = warmup_minutes * ticks_per_min
-        self._warmup_ticks = self._max_ticks
+        max_vol_minutes = max(vol_windows)  # 最大波动率窗口，决定缓冲区大小
+
+        self._max_ticks = max_vol_minutes * ticks_per_min    # 缓冲区大小（由特征决定）
+        self._warmup_ticks = warmup_minutes * ticks_per_min  # 预热门槛（由配置决定
         self._window_ticks = np.array(
             [w * ticks_per_min for w in vol_windows], dtype=np.int64
         )
