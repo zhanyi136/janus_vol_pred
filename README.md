@@ -155,6 +155,13 @@ Hi zhanyi136! You've successfully authenticated, but GitHub does not provide she
 [root@ip-172-31-47-106 ~]# 
 ```
 
+#### 配置git
+登录远程服务器后，直接执行以下命令进行全局配置：
+```bash
+git config --global user.name "你的用户名"
+git config --global user.email "你的邮箱@example.com"
+```
+
 ### 进入文件夹克隆项目
 cd workspace
 git clone git@github.com:zhanyi136/janus_vol_pred.git
