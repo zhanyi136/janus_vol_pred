@@ -79,6 +79,7 @@ class ModelLoader:
         if model_dir is None:
             return
         try:
+            # 比较磁盘上当前 model.txt 的修改时间（mtime）和加载时记录的 _mtime，只有两者不相同时才调用 _load() 重新加载模型；相同则不重载。
             mtime = (model_dir / "model.txt").stat().st_mtime
             if mtime != self._mtime:
                 logger.info(f"[{self.symbol}] 检测到新模型，开始 reload: {model_dir}")

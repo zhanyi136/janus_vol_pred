@@ -59,7 +59,10 @@ def _vol_ratio(short: float, long_: float) -> float:
         return 1.0
     if long_ == 0.0:
         return math.nan
-    return short / long_
+    res = short / long_
+    if math.isinf(res):
+        return math.nan
+    return res
 
 
 # ============================================================
@@ -141,7 +144,7 @@ class RealtimeFeatureComputer:
         # 时间特征
         sec_of_day = (timestamp_ns // 1_000_000_000) % 86400
         hour = float(sec_of_day // 3600)
-        minute = float((sec_of_day % 3600) // 60)
+        minute = float((sec_of_day % 3600) // 60) # (s % 86400) % 3600 == s % 3600
         tod = 2 * math.pi * (hour * 60 + minute) / 1440
 
         return {

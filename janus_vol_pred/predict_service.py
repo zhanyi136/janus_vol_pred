@@ -106,7 +106,7 @@ def sample_loop(
                 features = computers[symbol].update(
                     float(tick["bidPrice"]),
                     float(tick["askPrice"]),
-                    tick["tradeTime"] * 1000,  # 微秒 → 纳秒
+                    tick_ns,  # 使用采样的规整时间（纳秒）
                 )
 
                 # 统一格式
