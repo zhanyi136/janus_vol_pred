@@ -22,7 +22,7 @@ logger.add(
 # ========== ZeroMQ 设置 ==========
 context = zmq.Context()
 receiver = context.socket(zmq.PULL)
-receiver.connect("tcp://127.0.0.1:5555")  # 接收
+receiver.bind("tcp://127.0.0.1:5555")  # 接收
 
 sender = context.socket(zmq.PUSH)
 sender.connect("tcp://127.0.0.1:6666")  # 推送到下游
