@@ -14,7 +14,7 @@ features.py - 波动率预测特征计算模块
 from __future__ import annotations
 
 import os
-os.environ["POLARS_MAX_THREADS"] = "20"
+os.environ["POLARS_MAX_THREADS"] = "10"
 import json
 from pathlib import Path
 from datetime import datetime
@@ -96,33 +96,19 @@ def load_book_ticker(
                 text_stream = dr.read()
                 text = text_stream.decode('utf-8')
                 from io import StringIO
-                df = pl.read_csv(
-                    StringIO(text),
-                    schema={
-                        'exchange': pl.Utf8,
-                        'symbol': pl.Utf8,
-                        'timestamp': pl.Int64,
-                        'local_timestamp': pl.Int64,
-                        'ask_price': pl.Float64,
-                        'bid_price': pl.Float64,
-                        'ask_amount': pl.Float64,
-                        'bid_amount': pl.Float64,
-                    }
-                )
+                df = pl.read_csv(StringIO(text))
     else:
-        df = pl.read_csv(
-            filepath,
-            schema={
-                'exchange': pl.Utf8,
-                'symbol': pl.Utf8,
-                'timestamp': pl.Int64,
-                'local_timestamp': pl.Int64,
-                'ask_price': pl.Float64,
-                'bid_price': pl.Float64,
-                'ask_amount': pl.Float64,
-                'bid_amount': pl.Float64,
-            }
-        )
+        df = pl.read_csv(filepath)
+
+    # 3. 确保数据类型正确
+    df = df.with_columns([
+        pl.col('timestamp').cast(pl.Int64),
+        pl.col('local_timestamp').cast(pl.Int64),
+        pl.col('ask_amount').cast(pl.Float64),
+        pl.col('ask_price').cast(pl.Float64),
+        pl.col('bid_price').cast(pl.Float64),
+        pl.col('bid_amount').cast(pl.Float64),
+    ])
 
     # ============================================================
     # 微秒转纳秒（数据源是微秒，统一转成纳秒）
@@ -369,6 +355,7 @@ def build_features_batch(
     logger.info(f"开始构建特征: {symbol} {date}")
 
     tick_size = load_asset_info(symbol=symbol, assets_path=assets_path, instrument_type=instrument_type)["tick_size"]
+    print(f"symbol: {symbol}, date: {date}, tick_size: {tick_size}")
     warmup_ns = warmup_minutes * 60 * 1_000_000_000
 
     # 1. 加载数据（可选跨天拼接）
@@ -567,7 +554,7 @@ if __name__ == "__main__":
                 continue
 
             # 如果文件存在但不在验证记录中，先尝试验证
-            if parquet_path.exists():
+            if incremental_enabled and parquet_path.exists():
                 rows = verify_parquet(str(parquet_path))
                 if rows > 0:
                     append_verified_record(verified_csv, symbol, date, rows)
