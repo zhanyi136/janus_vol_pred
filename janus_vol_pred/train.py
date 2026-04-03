@@ -422,7 +422,7 @@ if __name__ == "__main__":
             all_pass = True
             for d in window_dates:
                 out_dir = results_output_dir / d / symbol
-                if (symbol, d) in verified_records:
+                if (symbol, d) in verified_records and incremental_enabled:
                     continue
                 if out_dir.exists():
                     if verify_train_result(out_dir):
@@ -437,7 +437,7 @@ if __name__ == "__main__":
                     all_pass = False
             
             # 如果所有天都验证通过了，跳过
-            if all_pass and all((symbol, d) in verified_records for d in window_dates):
+            if all_pass and all((symbol, d) in verified_records for d in window_dates) and incremental_enabled:
                 skipped += 1
                 continue
             
