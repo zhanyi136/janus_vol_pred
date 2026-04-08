@@ -2,8 +2,8 @@
 predict_service.py - 实盘波动率预测服务
 
 流程：
-  接收线程: ZeroMQ PULL → 维护 latest_tick / tick_size_cache
-  采样线程: 每 20ms → 特征计算 → 模型推理 → ZeroMQ PUSH
+    接收线程: ZeroMQ PULL → 维护 latest_tick / tick_size_cache
+    采样线程: 每 20ms → 特征计算 → 模型推理 → ZeroMQ PUSH
 """
 
 from __future__ import annotations
@@ -140,15 +140,15 @@ if __name__ == "__main__":
     config_path = Path(__file__).parent / "config" / "config.yaml"
     config = load_yaml_config(config_path)
 
-    rt_cfg = config["realtime"]
+    rt_cfg = config["realtime_predict"]
     sampling_cfg = config["sampling"]
     feat_cfg = config["features"]
-    symbols: list[str] = config["realtime"]["symbols"]
-    results_dir = Path(config["realtime"]["results_dir"])
+    symbols: list[str] = config["execution"]["symbols"]
+    results_dir = Path(rt_cfg["output_root"]) / rt_cfg["results_output_dir"]
     interval_ns = sampling_cfg["interval_ns"]
 
     # 日志
-    log_dir = Path(config["realtime"]["log_dir"]) / "predict_service"
+    log_dir = Path(rt_cfg["log_dir"]) / "predict_service"
     log_dir.mkdir(parents=True, exist_ok=True)
     logger.add(
         str(log_dir / "{time:YYYYMMDD_HHmmss}.log"),

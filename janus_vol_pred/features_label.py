@@ -23,8 +23,11 @@ import numpy as np
 import polars as pl
 from numba import njit
 from loguru import logger
-import zstandard as zstd
 from itertools import combinations
+from book_ticker_source import read_book_ticker_file, resolve_book_ticker_path
+from utils.utils import load_yaml_config, generate_date_list, load_asset_info
+import time
+from tqdm import tqdm
 
 def generate_time_grid(
     date: str,
@@ -68,58 +71,25 @@ def load_book_ticker(
     symbol: str,
     date: str,
     data_root: str,
+    fallback_root: str | None = None,
 ) -> pl.DataFrame:
     """
     用 Polars 高效加载 book_ticker 数据
 
     自动处理两种压缩格式：.csv.gz 和 .csv.zst
     """
-    base_path = Path(data_root) / symbol / "book_ticker"
-
-    # 尝试两种压缩格式
-    for ext in ['.csv.gz', '.csv.zst']:
-        filename = f"binance-futures_book_ticker_{date}_{symbol}{ext}"
-        filepath = base_path / filename
-        if filepath.exists():
-            logger.debug(f"加载book_ticker: {filepath}")
-            break
-    else:
+    filepath = resolve_book_ticker_path(
+        symbol=symbol,
+        date=date,
+        tardis_root=data_root,
+        fallback_root=fallback_root,
+    )
+    if filepath is None:
         raise FileNotFoundError(
-            f"未找到文件: {base_path}/binance-futures_book_ticker_{date}_{symbol}.csv.{{gz,zst}}"
+            f"未找到文件: {symbol} {date} book_ticker in tardis/fallback roots"
         )
-
-    if str(filepath).endswith('.zst'):
-        # zstd压缩格式：先解压到内存
-        with open(filepath, 'rb') as f:
-            dctx = zstd.ZstdDecompressor()
-            with dctx.stream_reader(f) as dr:
-                text_stream = dr.read()
-                text = text_stream.decode('utf-8')
-                from io import StringIO
-                df = pl.read_csv(StringIO(text))
-    else:
-        df = pl.read_csv(filepath)
-
-    # 3. 确保数据类型正确
-    df = df.with_columns([
-        pl.col('timestamp').cast(pl.Int64),
-        pl.col('local_timestamp').cast(pl.Int64),
-        pl.col('ask_amount').cast(pl.Float64),
-        pl.col('ask_price').cast(pl.Float64),
-        pl.col('bid_price').cast(pl.Float64),
-        pl.col('bid_amount').cast(pl.Float64),
-    ])
-
-    # ============================================================
-    # 微秒转纳秒（数据源是微秒，统一转成纳秒）
-    # ============================================================
-    df = df.with_columns([
-        (pl.col('timestamp') * 1000).alias('timestamp'),
-        (pl.col('local_timestamp') * 1000).alias('local_timestamp'),
-    ])
-
-    # 按时间排序
-    df = df.sort(['timestamp', 'local_timestamp'])
+    logger.debug(f"加载book_ticker: {filepath}")
+    df = read_book_ticker_file(filepath)
 
     logger.debug(f"加载完成: {len(df)} 行, 时间范围: {df['timestamp'].min()} ~ {df['timestamp'].max()}")
 
@@ -130,6 +100,7 @@ def load_book_ticker_with_prev_day(
     symbol: str,
     date: str,
     data_root: str,
+    fallback_root: str | None = None,
 ) -> pl.DataFrame:
     """
     加载当天的数据，并额外加载前一天完整的数据（用于补充开头）
@@ -144,10 +115,10 @@ def load_book_ticker_with_prev_day(
     prev_date = (datetime.strptime(date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
 
     # 加载前一天完整的数据
-    df_prev = load_book_ticker(symbol, prev_date, data_root)
+    df_prev = load_book_ticker(symbol, prev_date, data_root, fallback_root=fallback_root)
 
     # 加载当天的数据
-    df_today = load_book_ticker(symbol, date, data_root)
+    df_today = load_book_ticker(symbol, date, data_root, fallback_root=fallback_root)
 
     # 合并
     df = pl.concat([df_prev, df_today], how="vertical")
@@ -320,6 +291,7 @@ def build_features_batch(
     date: str,
     data_root: str,
     assets_path: str,
+    fallback_book_ticker_root: str | None = None,
     instrument_type: str = "future",
     warmup_minutes: int = 0,
     use_prev_day: bool = True,
@@ -360,9 +332,19 @@ def build_features_batch(
 
     # 1. 加载数据（可选跨天拼接）
     if use_prev_day:
-        df = load_book_ticker_with_prev_day(symbol=symbol, date=date, data_root=data_root)
+        df = load_book_ticker_with_prev_day(
+            symbol=symbol,
+            date=date,
+            data_root=data_root,
+            fallback_root=fallback_book_ticker_root,
+        )
     else:
-        df = load_book_ticker(symbol=symbol, date=date, data_root=data_root)
+        df = load_book_ticker(
+            symbol=symbol,
+            date=date,
+            data_root=data_root,
+            fallback_root=fallback_book_ticker_root,
+        )
 
     # 2. 生成时间网格
     time_grid = generate_time_grid(date=date, interval_ns=interval_ns, use_prev_day=use_prev_day)
@@ -404,7 +386,7 @@ def build_features_batch(
         ])
     else:
         raise ValueError(f"vol_windows 必须包含 {label_vol_window}，以生成 y_vol_{label_vol_window}m 标签")
-    
+
 
     # 8. 数据裁剪
     today_start = int(datetime.strptime(date, "%Y-%m-%d").timestamp() * 1e9)
@@ -504,9 +486,6 @@ def append_verified_record(csv_path: str, symbol: str, date: str, rows: int) -> 
 # ============================================================
 
 if __name__ == "__main__":
-    from utils.utils import load_yaml_config, generate_date_list, load_asset_info
-    import time
-    from tqdm import tqdm
 
     logger.info("测试特征构建...")
 
@@ -521,8 +500,8 @@ if __name__ == "__main__":
     )
 
     # 从配置读取输出目录
-    output_root = Path(config['paths']['output_root'])
-    features_output_dir = output_root / config['paths']['features_output_dir']
+    research_cfg = config["research"]
+    features_output_dir = Path(research_cfg["output_root"]) / research_cfg["features_output_dir"]
     features_output_dir.mkdir(parents=True, exist_ok=True)
 
     # 验证记录文件
@@ -577,6 +556,7 @@ if __name__ == "__main__":
                         date=date,
                         data_root=config['paths']['data_root'],
                         assets_path=config['paths']['binance_assets'],
+                        fallback_book_ticker_root = Path(research_cfg["output_root"]) / research_cfg["fallback_book_ticker_output_dir"],
                         instrument_type=config['execution']['instrument_type'],
                         warmup_minutes=config['sampling']['warmup_minutes'],
                         use_prev_day=config['execution']['use_prev_day'],
@@ -618,4 +598,3 @@ if __name__ == "__main__":
         logger.warning(f"失败 {failed} 个任务")
 
     logger.success(f"全部完成! 共 {total} 个任务")
-

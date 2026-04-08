@@ -13,8 +13,9 @@ features.py - 波动率预测特征计算模块
 
 from __future__ import annotations
 
-import json
 import os
+os.environ["POLARS_MAX_THREADS"] = "10"
+import json
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -95,33 +96,19 @@ def load_book_ticker(
                 text_stream = dr.read()
                 text = text_stream.decode('utf-8')
                 from io import StringIO
-                df = pl.read_csv(
-                    StringIO(text),
-                    schema={
-                        'exchange': pl.Utf8,
-                        'symbol': pl.Utf8,
-                        'timestamp': pl.Int64,
-                        'local_timestamp': pl.Int64,
-                        'ask_price': pl.Float64,
-                        'bid_price': pl.Float64,
-                        'ask_amount': pl.Float64,
-                        'bid_amount': pl.Float64,
-                    }
-                )
+                df = pl.read_csv(StringIO(text))
     else:
-        df = pl.read_csv(
-            filepath,
-            schema={
-                'exchange': pl.Utf8,
-                'symbol': pl.Utf8,
-                'timestamp': pl.Int64,
-                'local_timestamp': pl.Int64,
-                'ask_price': pl.Float64,
-                'bid_price': pl.Float64,
-                'ask_amount': pl.Float64,
-                'bid_amount': pl.Float64,
-            }
-        )
+        df = pl.read_csv(filepath)
+
+    # 3. 确保数据类型正确
+    df = df.with_columns([
+        pl.col('timestamp').cast(pl.Int64),
+        pl.col('local_timestamp').cast(pl.Int64),
+        pl.col('ask_amount').cast(pl.Float64),
+        pl.col('ask_price').cast(pl.Float64),
+        pl.col('bid_price').cast(pl.Float64),
+        pl.col('bid_amount').cast(pl.Float64),
+    ])
 
     # ============================================================
     # 微秒转纳秒（数据源是微秒，统一转成纳秒）
@@ -368,6 +355,7 @@ def build_features_batch(
     logger.info(f"开始构建特征: {symbol} {date}")
 
     tick_size = load_asset_info(symbol=symbol, assets_path=assets_path, instrument_type=instrument_type)["tick_size"]
+    print(f"symbol: {symbol}, date: {date}, tick_size: {tick_size}")
     warmup_ns = warmup_minutes * 60 * 1_000_000_000
 
     # 1. 加载数据（可选跨天拼接）
@@ -416,7 +404,7 @@ def build_features_batch(
         ])
     else:
         raise ValueError(f"vol_windows 必须包含 {label_vol_window}，以生成 y_vol_{label_vol_window}m 标签")
-    
+
 
     # 8. 数据裁剪
     today_start = int(datetime.strptime(date, "%Y-%m-%d").timestamp() * 1e9)
@@ -480,188 +468,35 @@ def save_features(
     else:
         raise ValueError(f"不支持的格式: {format}")
 
-
-# ============================================================
-# 实时推理：Numba + 环形缓冲区（用于实盘）
-# ============================================================
-
-@njit(cache=True)
-def compute_mid_price_tick_numba(bid_price: float, ask_price: float, tick_size: float) -> float:
-    """计算mid_price并tick化（Numba加速）"""
-    mid = (bid_price + ask_price) / 2.0
-    return round(mid / tick_size, 1)
+def verify_parquet(path: str) -> int:
+    """验证 parquet 文件是否有效，返回行数，失败返回 -1"""
+    try:
+        df = pl.read_parquet(path)
+        return len(df) if len(df) > 0 else -1
+    except Exception:
+        return -1
 
 
-@njit(cache=True)
-def compute_rolling_std_incremental(
-    values: np.ndarray,
-    window: int,
-) -> float:
-    """
-    增量法计算滚动标准差
-
-    用于实时推理，只计算当前时刻的值，不遍历历史
-
-    Args:
-        values: 最新的N个值（倒序，最近的在最前面）
-        window: 窗口大小
-
-    Returns:
-        滚动标准差，如果数据不足返回 NaN
-    """
-    n = len(values)
-    if n < window:
-        return np.nan
-
-    s = 0.0
-    s2 = 0.0
-    for i in range(window):
-        v = values[i]
-        if not np.isnan(v):
-            s += v
-            s2 += v * v
-
-    mean = s / window
-    var = (s2 / window) - mean * mean
-    if var > 0:
-        return np.sqrt(var)
-    return 0.0
+def load_verified_records(csv_path: str) -> set:
+    """加载已验证的记录，返回 {(symbol, date), ...} 集合"""
+    path = Path(csv_path)
+    if not path.exists():
+        return set()
+    try:
+        df = pl.read_csv(csv_path)
+        return set(zip(df["symbol"].to_list(), df["date"].to_list()))
+    except Exception:
+        return set()
 
 
-class RealtimeFeatureComputer:
-    """
-    实时特征计算器（用于实盘推理）
-
-    使用环形缓冲区和Numba实现毫秒级计算
-
-    用法:
-        computer = RealtimeFeatureComputer("XRPUSDT", "/path/to/assets.json")
-        # 每收到新数据
-        computer.update(bid_price, ask_price, ts_ns)
-        features = computer.compute_features()  # 返回14个特征
-    """
-
-    def __init__(
-        self,
-        symbol: str,
-        assets_path: str,
-        warmup_minutes: int = 15,
-    ):
-        self.symbol = symbol
-        self.tick_size = load_asset_info(symbol, assets_path)["tick_size"]
-        self.warmup_ns = warmup_minutes * 60 * 1_000_000_000
-
-        # 环形缓冲区：存储mid_price_chg序列
-        # 120分钟 = 120 * 60 * 1000 / 20 = 360000 ticks
-        max_ticks = 120 * 60 * 1000 // 20
-        self.buffer = np.full(max_ticks, np.nan, dtype=np.float64)
-        self.buffer_ptr = 0
-        self.buffer_count = 0
-
-        self.prev_mid_tick = 0.0
-        self.is_warmed_up = False
-        self.last_ts = 0
-
-    def update(self, bid_price: float, ask_price: float, ts_ns: int) -> None:
-        """
-        更新内部状态
-
-        Args:
-            bid_price: 买一价
-            ask_price: 卖一价
-            ts_ns: 当前时间戳 (纳秒)
-        """
-        # 检查是否超过预热期
-        if ts_ns < self.warmup_ns:
-            return
-
-        # 计算mid_price_tick
-        mid_price_tick = compute_mid_price_tick_numba(
-            bid_price, ask_price, self.tick_size
-        )
-
-        # 计算差分
-        if self.prev_mid_tick > 0:
-            mid_price_chg = mid_price_tick - self.prev_mid_tick
-        else:
-            mid_price_chg = 0.0
-
-        # 更新缓冲区
-        self.buffer[self.buffer_ptr] = mid_price_chg
-        self.buffer_ptr = (self.buffer_ptr + 1) % len(self.buffer)
-        self.buffer_count = min(self.buffer_count + 1, len(self.buffer))
-
-        self.prev_mid_tick = mid_price_tick
-        self.last_ts = ts_ns
-        self.is_warmed_up = True
-
-    def compute_features(self) -> Dict[str, float]:
-        """
-        计算当前时刻的特征
-
-        Returns:
-            特征字典，14个特征
-        """
-        features = {}
-
-        if not self.is_warmed_up or self.buffer_count == 0:
-            for name in FEATURE_NAMES:
-                features[name] = np.nan
-            return features
-
-        # 获取有效数据（倒序，最近的在最前面）
-        valid_data = np.zeros(self.buffer_count, dtype=np.float64)
-        for i in range(self.buffer_count):
-            idx = (self.buffer_ptr - 1 - i) % len(self.buffer)
-            valid_data[i] = self.buffer[idx]
-
-        # 计算各窗口波动率
-        for w_min in VOL_WINDOWS_MINUTES:
-            vol_name = f'vol_{w_min}m'
-            w_ticks = w_min * 60 * 1000 // 20
-            features[vol_name] = float(compute_rolling_std_incremental(valid_data, w_ticks))
-
-        # 计算波动率比率
-        vol_5m = features.get('vol_5m', np.nan)
-        vol_30m = features.get('vol_30m', np.nan)
-        vol_120m = features.get('vol_120m', np.nan)
-
-        if not np.isnan(vol_5m) and not np.isnan(vol_30m) and vol_30m > 0:
-            features['vol_ratio_5_30'] = float(vol_5m / vol_30m)
-        else:
-            features['vol_ratio_5_30'] = np.nan
-
-        if not np.isnan(vol_30m) and not np.isnan(vol_120m) and vol_120m > 0:
-            features['vol_ratio_30_120'] = float(vol_30m / vol_120m)
-        else:
-            features['vol_ratio_30_120'] = np.nan
-
-        # 时间特征
-        if self.last_ts > 0:
-            total_seconds = self.last_ts // 1_000_000_000
-            hour = (total_seconds // 3600) % 24
-            minute = (total_seconds % 3600) // 60
-
-            features['hour'] = float(hour)
-            features['minute'] = float(minute)
-            features['tod_sin'] = float(np.sin(2 * np.pi * (hour * 60 + minute) / (24 * 60)))
-            features['tod_cos'] = float(np.cos(2 * np.pi * (hour * 60 + minute) / (24 * 60)))
-        else:
-            features['hour'] = np.nan
-            features['minute'] = np.nan
-            features['tod_sin'] = np.nan
-            features['tod_cos'] = np.nan
-
-        return features
-
-    def reset(self) -> None:
-        """重置状态"""
-        self.buffer[:] = np.nan
-        self.buffer_ptr = 0
-        self.buffer_count = 0
-        self.prev_mid_tick = 0.0
-        self.is_warmed_up = False
-        self.last_ts = 0
+def append_verified_record(csv_path: str, symbol: str, date: str, rows: int) -> None:
+    """追加一条验证记录"""
+    path = Path(csv_path)
+    header = not path.exists()
+    with open(path, "a", encoding="utf-8") as f:
+        if header:
+            f.write("symbol,date,rows,verified_at\n")
+        f.write(f"{symbol},{date},{rows},{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}\n")
 
 
 # ============================================================
@@ -675,7 +510,8 @@ if __name__ == "__main__":
 
     logger.info("测试特征构建...")
 
-    config = load_yaml_config("/home/zhangzhanyi/workspace/hftbacktest_analysis/src/zzy/hftbacktest_analysis/vol_pred/config/config.yaml")
+    config_path = Path(__file__).parent / "config" / "config.yaml"
+    config = load_yaml_config(config_path)
 
     # 从配置读取参数
     symbols = config['execution']['symbols']
@@ -689,9 +525,17 @@ if __name__ == "__main__":
     features_output_dir = output_root / config['paths']['features_output_dir']
     features_output_dir.mkdir(parents=True, exist_ok=True)
 
+    # 验证记录文件
+    verified_csv = str(features_output_dir / "verified_records.csv")
+    verified_records = load_verified_records(verified_csv)
+
+    incremental_enabled = config['execution']['incremental_features_label']
+    max_retries = config['execution']['incremental_features_max_retries']
+
     logger.info(f"币种: {symbols}")
     logger.info(f"日期: {dates}")
     logger.info(f"输出目录: {features_output_dir}")
+    logger.info(f"已验证记录: {len(verified_records)} 条")
 
     total = len(symbols) * len(dates)
     current = 0
@@ -700,46 +544,77 @@ if __name__ == "__main__":
 
     for symbol in symbols:
         for date in tqdm(dates, desc=f"{symbol}"):
-            # 增量更新：检查文件是否已存在
+            current += 1
             save_path = features_output_dir / symbol / date / "features_label"
-            incremental_features_label_enabled = config['execution']['incremental_features_label']
-            if incremental_features_label_enabled and (save_path.with_suffix('.parquet').exists()):
+            parquet_path = save_path.with_suffix('.parquet')
+
+            # 增量检查：看验证记录，而非文件是否存在
+            if incremental_enabled and (symbol, date) in verified_records:
                 skipped += 1
-                current += 1
                 continue
-            
-            t0 = time.time()
 
-            try:
-                df = build_features_batch(
-                    symbol=symbol,
-                    date=date,
-                    data_root=config['paths']['data_root'],
-                    assets_path=config['paths']['binance_assets'],
-                    instrument_type=config['execution']['instrument_type'],
-                    warmup_minutes=config['sampling']['warmup_minutes'],
-                    use_prev_day=config['execution']['use_prev_day'],
-                    interval_ns=config['sampling']['interval_ns'],
-                    vol_windows=config['features']['vol_windows'],
-                    label_vol_window=config['label']['vol_window'],
-                )
+            # 如果文件存在但不在验证记录中，先尝试验证
+            if incremental_enabled and parquet_path.exists():
+                rows = verify_parquet(str(parquet_path))
+                if rows > 0:
+                    append_verified_record(verified_csv, symbol, date, rows)
+                    verified_records.add((symbol, date))
+                    logger.info(f"[{current}/{total}] {symbol} {date} 已有文件验证通过 ({rows} 行)，跳过")
+                    skipped += 1
+                    continue
+                else:
+                    logger.warning(f"[{symbol}] {date} 已有文件验证失败，删除后重新生成")
+                    parquet_path.unlink()
 
-                t1 = time.time()
-                save_path.parent.mkdir(parents=True, exist_ok=True)
-                save_features(df, str(save_path), format="parquet")
-                current += 1
-                logger.info(f"✅ [{current}/{total}] {symbol} {date} 完成, 耗时: {t1 - t0:.2f}秒")
 
-            except Exception as e:
+            # 最多重试 max_retries 次
+            success = False
+            for attempt in range(1, max_retries + 1):
+                t0 = time.time()
+                try:
+                    df = build_features_batch(
+                        symbol=symbol,
+                        date=date,
+                        data_root=config['paths']['data_root'],
+                        assets_path=config['paths']['binance_assets'],
+                        instrument_type=config['execution']['instrument_type'],
+                        warmup_minutes=config['sampling']['warmup_minutes'],
+                        use_prev_day=config['execution']['use_prev_day'],
+                        interval_ns=config['sampling']['interval_ns'],
+                        vol_windows=config['features']['vol_windows'],
+                        label_vol_window=config['label']['vol_window'],
+                    )
+
+                    save_path.parent.mkdir(parents=True, exist_ok=True)
+                    save_features(df, str(save_path), format="parquet")
+
+                    # 验证
+                    rows = verify_parquet(str(parquet_path))
+                    if rows > 0:
+                        append_verified_record(verified_csv, symbol, date, rows)
+                        verified_records.add((symbol, date))
+                        t1 = time.time()
+                        logger.info(f"[{current}/{total}] {symbol} {date} 完成 ({rows} 行), 耗时: {t1 - t0:.2f}秒")
+                        success = True
+                        break
+                    else:
+                        logger.warning(f"[{symbol}] {date} 验证失败 (第{attempt}次), 删除后重试")
+                        if parquet_path.exists():
+                            parquet_path.unlink()
+
+                except Exception as e:
+                    t1 = time.time()
+                    logger.error(f"[{symbol}] {date} 生成失败 (第{attempt}次), 耗时: {t1 - t0:.2f}秒, 错误: {e}")
+                    if parquet_path.exists():
+                        parquet_path.unlink()
+
+            if not success:
                 failed += 1
-                current += 1
-                t1 = time.time()
-                logger.error(f"❌ [{current}/{total}] {symbol} {date} 失败, 耗时: {t1 - t0:.2f}秒, 错误: {e}")
-                continue
-        
-    if skipped > 0:
-        logger.info(f"⏭️ 增量模式：跳过了 {skipped} 个已存在的文件")
-    if failed > 0:
-        logger.warning(f"⚠️ 失败 {failed} 个任务")
+                logger.error(f"[{symbol}] {date} {max_retries}次重试后仍失败")
 
-    logger.success(f"🎉 全部完成! 共 {total} 个任务")
+    if skipped > 0:
+        logger.info(f"增量模式：跳过了 {skipped} 个已验证的文件")
+    if failed > 0:
+        logger.warning(f"失败 {failed} 个任务")
+
+    logger.success(f"全部完成! 共 {total} 个任务")
