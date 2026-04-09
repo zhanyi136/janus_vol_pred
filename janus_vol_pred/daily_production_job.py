@@ -21,28 +21,21 @@ def run_daily_production_job(config: dict) -> dict:
     result = dict(training_result)
     result["published_symbols"] = publish_result["published_symbols"]
     result["publish_failed_symbols"] = publish_result["failed_symbols"]
-    logger.info(
-        "Daily production job summary | "
-        f"model_date={result['model_date']} | "
-        f"trained={result['successful_symbols']} | "
-        f"train_failed={result['failed_symbols']} | "
-        f"published={result['published_symbols']} | "
-        f"publish_failed={result['publish_failed_symbols']}"
-    )
+
     return result
 
 
 def exit_code_from_result(result: dict) -> int:
     train_failed = bool(result["failed_symbols"])
     publish_failed = bool(result["publish_failed_symbols"])
-    published_any = bool(result["published_symbols"])
     trained_any = bool(result["successful_symbols"])
+    published_any = bool(result["published_symbols"])
 
-    if not train_failed and not publish_failed:
+    if not train_failed and not publish_failed: # 训练和发布都成功
         return 0
-    if trained_any and published_any:
+    if trained_any and published_any: # 部分成功，部分失败
         return 1
-    return 2
+    return 2 # 训练全失败 或 发布全失败
 
 
 if __name__ == "__main__":

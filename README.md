@@ -152,7 +152,7 @@ This key is not known by any other names
 Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
 Warning: Permanently added 'github.com' (ED25519) to the list of known hosts.
 Hi zhanyi136! You've successfully authenticated, but GitHub does not provide shell access.
-[root@ip-172-31-47-106 ~]# 
+[root@ip-172-31-47-106 ~]#
 ```
 
 #### 配置git
@@ -340,3 +340,164 @@ CRON_TZ=Asia/Shanghai
 - `0`: 训练和发布都成功
 - `1`: 有部分训练或发布失败，但至少有部分模型成功发布
 - `2`: 训练全部失败，或训练成功但发布全部失败
+
+
+
+
+可以，下面这段你可以直接粘到 Markdown 里：
+
+```md
+## 使用 `crontab` 定时执行每日任务
+
+### 1. 编辑定时任务
+在终端执行：
+
+```bash
+crontab -e
+```
+
+如果是第一次使用，会提示选择编辑器。推荐输入：
+
+```bash
+1
+```
+
+表示使用 `nano`。
+
+---
+
+### 2. 添加定时规则
+在打开的编辑器中写入以下两行：
+
+```cron
+CRON_TZ=Asia/Shanghai
+0 8 * * * /home/zhangzhanyi/workspace/janus_vol_pred/run_daily_production.sh
+```
+
+含义：
+
+- `CRON_TZ=Asia/Shanghai`
+  - 表示下面的时间按北京时间解释
+- `0 8 * * *`
+  - 表示每天北京时间 `08:00` 执行
+- `/home/zhangzhanyi/workspace/janus_vol_pred/run_daily_production.sh`
+  - 表示执行该脚本
+
+---
+
+### 3. 保存并退出
+如果使用的是 `nano`：
+
+1. 按 `Ctrl + O` 保存
+2. 按回车确认文件名
+3. 按 `Ctrl + X` 退出
+
+保存成功后，`crontab` 会自动安装这份配置。
+
+---
+
+### 4. 检查是否生效
+执行：
+
+```bash
+crontab -l
+```
+
+如果生效了，应看到：
+
+```cron
+CRON_TZ=Asia/Shanghai
+0 8 * * * /home/zhangzhanyi/workspace/janus_vol_pred/run_daily_production.sh
+```
+
+---
+
+### 5. 检查脚本是否可执行
+执行：
+
+```bash
+ls -l /home/zhangzhanyi/workspace/janus_vol_pred/run_daily_production.sh
+```
+
+应看到文件权限中包含 `x`，例如：
+
+```bash
+-rwxr-xr-x
+```
+
+如果没有执行权限，可以执行：
+
+```bash
+chmod +x /home/zhangzhanyi/workspace/janus_vol_pred/run_daily_production.sh
+```
+
+---
+
+### 6. 先手工执行一次脚本
+正式依赖 `cron` 之前，建议先手工运行一次：
+
+```bash
+/home/zhangzhanyi/workspace/janus_vol_pred/run_daily_production.sh
+```
+
+这样可以确认：
+
+- 脚本路径正确
+- Python 环境正常
+- 日志目录可写
+- 训练/发布流程可以正常启动
+
+---
+
+### 7. 查看日志输出
+脚本会将输出写入日志目录：
+
+```bash
+/home/zhangzhanyi/workspace/janus_vol_pred/janus_vol_pred/logs/daily_jobs/
+```
+
+可以执行：
+
+```bash
+ls -lt /home/zhangzhanyi/workspace/janus_vol_pred/janus_vol_pred/logs/daily_jobs
+```
+
+查看最新日志文件。
+
+查看日志内容：
+
+```bash
+tail -n 50 /home/zhangzhanyi/workspace/janus_vol_pred/janus_vol_pred/logs/daily_jobs/<最新日志文件名>
+```
+
+---
+
+### 8. 临时测试 `cron` 是否真的触发
+如果想快速验证 `cron` 是否工作，可以临时把时间改成未来 1~2 分钟，例如：
+
+```cron
+CRON_TZ=Asia/Shanghai
+26 16 * * * /home/zhangzhanyi/workspace/janus_vol_pred/run_daily_production.sh
+```
+
+到时间后检查：
+
+- 是否生成了新的日志文件
+- 是否执行了任务
+
+验证通过后，再改回正式配置：
+
+```cron
+CRON_TZ=Asia/Shanghai
+0 8 * * * /home/zhangzhanyi/workspace/janus_vol_pred/run_daily_production.sh
+```
+
+---
+
+### 9. 说明
+- `cron` 启动的任务不会因为 SSH 断开而中断
+- `cron` 是后台自动调度，不依赖当前终端会话
+- 如果脚本执行失败，应优先查看日志文件排查问题
+```
+
+如果你愿意，我还可以继续帮你写一段更短的“极简版教程”。
