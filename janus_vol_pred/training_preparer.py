@@ -120,8 +120,6 @@ def prepare_feature_date(
 
 def prepare_daily_training_features(config: dict, reference_date: str | None = None) -> tuple[set[str], list[str]]:
     production_cfg = config["production_train"]
-    if not production_cfg.get("enabled", False):
-        return set(), []
 
     reference_date = reference_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     train_cfg = config["train"]

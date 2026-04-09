@@ -276,3 +276,67 @@ rsync error: unexplained error (code 255) at io.c(232) [sender=3.2.7]
 key 文件权限太开放了，修复一下：
 chmod 600 ~/.ssh/jcd_aws_01/id_ed25519
 然后重新跑 rsync。即可。
+
+
+## 每日生产训练与自动发布
+
+### 配置入口
+
+生产训练和模型发布的主要配置在：
+
+`janus_vol_pred/config/config.yaml`
+
+其中：
+
+- `production_train`: 本地生产训练输出目录
+- `publish`: 发布到 AWS 的目标配置
+
+当前发布只同步三个实盘必需文件：
+
+- `model.txt`
+- `quantile_transformer.pkl`
+- `feature_cols.json`
+
+
+### 手工执行每日任务
+
+直接执行：
+
+```bash
+/home/zhangzhanyi/workspace/janus_vol_pred/run_daily_production.sh
+```
+
+它会：
+
+1. 使用项目内 `.venv`
+2. 调用 `janus_vol_pred/daily_production_job.py`
+3. 先运行生产训练
+4. 再把训练成功的 symbol 发布到 AWS
+
+
+### cron 定时任务
+
+编辑 crontab：
+
+```bash
+crontab -e
+```
+
+加入：
+
+```cron
+CRON_TZ=Asia/Shanghai
+0 8 * * * /home/zhangzhanyi/workspace/janus_vol_pred/run_daily_production.sh
+```
+
+含义：
+
+- 按北京时间每天 08:00 执行
+- 使用统一入口脚本，而不是直接调 `train_production.py`
+
+
+### 退出码语义
+
+- `0`: 训练和发布都成功
+- `1`: 有部分训练或发布失败，但至少有部分模型成功发布
+- `2`: 训练全部失败，或训练成功但发布全部失败

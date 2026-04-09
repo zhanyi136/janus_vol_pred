@@ -10,7 +10,6 @@ research:
   fallback_book_ticker_output_dir: "raw_book_ticker"
 
 production_train:
-  enabled: true
   trigger_utc_hour: 0
   trigger_utc_minute: 0
   fail_if_feature_dependency_missing: true
@@ -19,6 +18,23 @@ production_train:
   features_output_dir: "features"
   results_output_dir: "results_production"
   fallback_book_ticker_output_dir: "raw_book_ticker"
+
+publish:
+  enabled: true
+  schedule_timezone: "Asia/Shanghai"
+  schedule_hour: 8
+  schedule_minute: 0
+  remote_host: "54.64.180.220" # 远端 AWS 服务器地址
+  remote_user: "root" # 登录远端机器所用的用户名
+  ssh_key_path: "~/.ssh/jcd_aws_01/id_ed25519" # 用于 ssh/rsync 登录远端机器的私钥路径
+  remote_results_root: "/root/workspace/janus_vol_pred/results" # 远端机器上模型存放的根目录
+  rsync_bin: "rsync"
+  ssh_bin: "ssh"
+  files_to_sync:
+    - "model.txt"
+    - "quantile_transformer.pkl"
+    - "feature_cols.json"
+  publish_timeout_sec: 300 # 单次发布命令的超时时间，单位秒
 
 realtime_predict:
   log_dir: "/root/workspace/janus_vol_pred/logs"

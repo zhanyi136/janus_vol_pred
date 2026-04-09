@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -28,14 +27,6 @@ from training_preparer import prepare_daily_training_features
 from utils.utils import load_yaml_config
 
 os.environ["POLARS_MAX_THREADS"] = "20"
-
-
-def setup_production_logger(config: dict) -> Path:
-    production_cfg = config["production_train"]
-    log_dir = Path(production_cfg["log_dir"]) / datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_dir.mkdir(parents=True, exist_ok=True)
-    logger.add(log_dir / "train_production.log", rotation="100 MB", level=config["logging"]["level"])
-    return log_dir
 
 
 def latest_complete_day(reference_dt: datetime | None = None) -> str:
@@ -193,13 +184,20 @@ def train_symbol_production(
     return tmp_out_dir
 
 
-def run_production_training(config: dict) -> dict:
+if __name__ == "__main__":
+    config_path = Path(__file__).parent / "config" / "config.yaml"
+    config = load_yaml_config(config_path)
+
     exec_cfg = config["execution"]
     train_cfg = config["train"]
     production_cfg = config["production_train"]
+    log_dir = Path(production_cfg["log_dir"]) / datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    logger.add(log_dir / "train_production.log", rotation="100 MB", level=config["logging"]["level"])
 
     target_date = latest_complete_day() # 这一天在生产里通常作为 val_days=1 的验证日，也是模型产出的归档日期。
     prep_reference_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # 准备器的实现是“上界不含当天”，准备 “从今天往前 train_days+val_days 天”的特征
     failed_prepare_symbols, prepared_dates = prepare_daily_training_features(config, reference_date=prep_reference_date)
     logger.info(f"生产重训目标日: {target_date}")
     logger.info(f"准备特征日期 (reference_date={prep_reference_date}): {prepared_dates}")
@@ -211,7 +209,6 @@ def run_production_training(config: dict) -> dict:
     max_retries = train_cfg["max_retries"]
 
     failed_symbols: list[str] = []
-    successful_symbols: list[str] = []
     for symbol in exec_cfg["symbols"]:
         if symbol in failed_prepare_symbols:
             failed_symbols.append(symbol)
@@ -244,7 +241,6 @@ def run_production_training(config: dict) -> dict:
                     tmp_out_dir.replace(out_dir)
                     logger.success(f"[{symbol}] 生产模型已保存并验证通过: {out_dir}")
                     success = True
-                    successful_symbols.append(symbol)
                     break
 
                 logger.warning(f"[{symbol}] production artifact verification failed (attempt {attempt}/{max_retries})")
@@ -262,20 +258,5 @@ def run_production_training(config: dict) -> dict:
             failed_symbols.append(symbol)
             logger.error(f"[{symbol}] production training failed after {max_retries} attempts")
 
-    return {
-        "model_date": target_date,
-        "prepared_dates": prepared_dates,
-        "successful_symbols": successful_symbols,
-        "failed_symbols": failed_symbols,
-        "failed_prepare_symbols": sorted(failed_prepare_symbols),
-    }
-
-
-if __name__ == "__main__":
-    config_path = Path(__file__).parent / "config" / "config.yaml"
-    config = load_yaml_config(config_path)
-    setup_production_logger(config)
-    result = run_production_training(config)
-    if result["failed_symbols"]:
-        raise SystemExit(f"Production training failed for symbols: {result['failed_symbols']}")
-    sys.exit(0)
+    if failed_symbols:
+        raise RuntimeError(f"Production training failed for symbols: {failed_symbols}")
