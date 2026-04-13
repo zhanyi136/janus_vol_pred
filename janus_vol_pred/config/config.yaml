@@ -1,6 +1,6 @@
 paths:
   data_root: "/data/market_data/binance/future"
-  binance_assets: "/data/sigma/sigma/basic/binance_assets.json"
+  binance_assets: "/data/market_data/binance/basic/binance_assets.json"
 
 research:
   log_dir: "/home/zhangzhanyi/workspace/janus_vol_pred/janus_vol_pred/logs"
@@ -63,9 +63,262 @@ logging:
 execution:
   instrument_type: "future"
   symbols:
+    # 204个币，回测适用于20250101-20260407，tick_size更新到2026-04-07
+
+    # 流动性Top100
+    - ETHUSDT # 格式还需调整，需弄成6小时一个文件
+    - BTCUSDT # 格式还需调整，需弄成6小时一个文件
+    # - SOLUSDT # lot_size变过
     - XRPUSDT
-  start_date: "2026-01-01"
-  end_date: "2026-01-01"
+    - BNBUSDT
+    - DOGEUSDT
+    - ZECUSDT
+    - SUIUSDT
+    - VIRTUALUSDT
+    - ENAUSDT
+    # - 1000PEPEUSDT # 成交太大
+    - LINKUSDT
+    - AVAXUSDT
+    - ADAUSDT
+    - TAOUSDT
+    - LTCUSDT
+    - BCHUSDT
+    - AIXBTUSDT
+    - WLDUSDT
+    - AAVEUSDT
+    - WIFUSDT
+    - PENGUUSDT
+    - HBARUSDT
+    - TRXUSDT
+    - NEARUSDT
+    - DIAUSDT
+    - APTUSDT
+    - DOTUSDT
+    - FILUSDT
+    - ZENUSDT
+    - ARBUSDT
+    - UNIUSDT
+    # - KDAUSDT # tick_size变化
+    - 1000BONKUSDT
+    - CRVUSDT
+    - EIGENUSDT
+    - TIAUSDT
+    - 1000SHIBUSDT
+    - XLMUSDT
+    - SNXUSDT
+    - ETHFIUSDT
+    - ONDOUSDT
+    - ETCUSDT
+    - OPUSDT
+    - CAKEUSDT
+    - DASHUSDT
+    - PHBUSDT
+    - FETUSDT
+    - LDOUSDT
+    - INJUSDT
+    - AUCTIONUSDT
+    - 1000FLOKIUSDT
+    # - SEIUSDT # tick_size变化 2026-02-27 07:00 (UTC)
+  # top50-100
+    - TONUSDT
+    - JUPUSDT
+    # - MEUSDT # tick_size变化
+    - APEUSDT
+    - GALAUSDT
+    - ATOMUSDT
+    - PENDLEUSDT
+    # - NEIROUSDT # tick_size变化 2026-02-27 07:00 (UTC)
+    # - OMUSDT # 已退市
+    - DYDXUSDT
+    - BELUSDT
+    - PNUTUSDT
+    - ALGOUSDT
+    # - CELOUSDT # tick_size变化 2026-04-02 06:30 (UTC) # tick_size变化 2026-03-19 06:30 (UTC)
+    # - EDUUSDT  # tick_size变化 2026-04-02 06:30 (UTC)
+    - RENDERUSDT
+    - ICPUSDT
+    - ORDIUSDT
+    - TRBUSDT
+    # - FLOWUSDT # tick_size变化 2026-01-28 09:00 (UTC)
+    - JTOUSDT
+    - WUSDT
+  # top 70-100
+    - SANDUSDT
+    - VANAUSDT
+    - ARUSDT
+    - ENSUSDT
+    - POLUSDT
+    # - STRKUSDT # tick_size变化 2026-02-09 07:00 (UTC)
+    - PYTHUSDT
+    - ALICEUSDT
+    - ARKMUSDT
+    - IMXUSDT
+    - MORPHOUSDT
+    - TURBOUSDT
+    - DOGSUSDT
+    - ZROUSDT
+    - CFXUSDT
+    - YGGUSDT
+    - API3USDT
+    - SUSHIUSDT
+    - VETUSDT
+    - BBUSDT
+    - MANAUSDT
+    - JASMYUSDT
+    - AVAUSDT
+    - BOMEUSDT
+    - 1000SATSUSDT
+    - THETAUSDT
+    # - RUNEUSDT # tick_size变化
+    - PEOPLEUSDT
+    - SKLUSDT
+    - TWTUSDT
+    # 流动性Top100之后
+    - DEGOUSDT
+    - 1000CHEEMSUSDT
+    - IOUSDT
+    - NMRUSDT
+    - BATUSDT
+    - ZKUSDT
+    - NEOUSDT
+    - GRTUSDT
+    - KAVAUSDT
+    # - LISTAUSDT # tick_size变化 2026-03-05 07:00 (UTC)
+    - LPTUSDT
+    - STXUSDT
+    # - MEMEUSDT # tick_size变化 2026-02-12 07:00 (UTC)
+    - BANANAUSDT
+    - AXSUSDT
+    - COMPUSDT
+    - KMNOUSDT
+    - RSRUSDT
+    - 1000LUNCUSDT
+    - XTZUSDT
+    # - MAGICUSDT # tick_size变化 2026-02-12 07:00 (UTC)
+    - BIGTIMEUSDT
+    - LQTYUSDT
+    - IOTAUSDT
+    - GMTUSDT
+    - QTUMUSDT
+    - SUPERUSDT
+    - ACTUSDT
+    - 1MBABYDOGEUSDT
+    # - SAGAUSDT  # tick_size变化
+    - CHZUSDT
+    - AIUSDT
+    # - MINAUSDT # tick_size变化 2026-02-12 07:00 (UTC)
+    - EGLDUSDT
+    - QNTUSDT
+    - ROSEUSDT
+    - XAIUSDT
+    - USDCUSDT
+    - ZRXUSDT
+    # - AXLUSDT # tick_size变化 2026-02-09 07:00 (UTC)
+    - ACHUSDT
+    - MASKUSDT
+    - STORJUSDT
+    - SSVUSDT
+    - BEAMXUSDT
+    - 1000XECUSDT
+    - KSMUSDT
+    - YFIUSDT
+    - THEUSDT
+    - ZILUSDT
+    - SPELLUSDT
+    - DEXEUSDT
+    # - ALTUSDT # tick_size变化 2026-02-27 07:00 (UTC)
+    - SUNUSDT
+    - KNCUSDT
+    - ARPAUSDT
+    - 1INCHUSDT
+    - BLURUSDT
+    - C98USDT
+    - FIDAUSDT
+    # - TRUUSDT # tick_size变化 2026-02-12 07:00 (UTC)
+    - CETUSUSDT
+    - ONEUSDT
+    - RLCUSDT
+    # - LRCUSDT # 已退市
+    - ILVUSDT
+    - PHAUSDT
+    - IDUSDT
+    - AGLDUSDT
+    - ONTUSDT
+    # - VANRYUSDT # tick_size变化 2025-12-22 07:00 (UTC)
+    - CHRUSDT
+    - COTIUSDT
+    - HOTUSDT
+    - GMXUSDT
+    - HFTUSDT
+    # - FLMUSDT  # 已退市
+    # - MANTAUSDT  # tick_size变化
+    # - RDNTUSDT # tick_size变化 2026-02-12 07:00 (UTC)
+    - CKBUSDT
+    - CGPTUSDT
+    - RVNUSDT
+    - ORCAUSDT
+    - ENJUSDT
+    - COWUSDT
+    - BANDUSDT
+    - IOTXUSDT
+    - WOOUSDT
+    - USTCUSDT
+    - ACEUSDT
+    # - FXSUSDT # 已换名成FRAXUSDT，即原FXSUSDT的名称相当于已退市
+    - SYSUSDT
+    # - PIXELUSDT # tick_size变化 2026-02-09 07:00 (UTC)
+    - GLMUSDT
+    # - GTCUSDT # tick_size变化 2026-04-07 06:30 (UTC)
+    - RAREUSDT
+    - TLMUSDT
+    # - SXPUSDT # 已退市
+    - DENTUSDT
+    - MAVUSDT
+    - STGUSDT
+    # - SCRUSDT # tick_size变化 2025-12-22 07:00 (UTC)
+    # - TUSDT # tick_size变化 2026-02-12 07:00 (UTC)
+    - CTSIUSDT
+    # - ATAUSDT # tick_size变化 2026-04-07 06:30 (UTC)
+    - DUSKUSDT
+    - COSUSDT
+    - SFPUSDT
+    - SANTOSUSDT
+    - ICXUSDT
+    - CELRUSDT
+    # - FIOUSDT  # tick_size变化 2026-03-18 07:00 (UTC)
+    # - GHSTUSDT # 已退市
+    # - SCRTUSDT  # tick_size变化 2026-03-05 07:00 (UTC)
+    - RPLUSDT
+    - JOEUSDT
+    - ASTRUSDT
+    - IOSTUSDT
+    - OGNUSDT
+    - MOVRUSDT
+    - GASUSDT
+    - POLYXUSDT
+    - VELODROMEUSDT
+    - HIGHUSDT
+    - MTLUSDT
+    # - NKNUSDT # 已退市
+    # - DFUSDT # 已退市
+    - ARKUSDT
+    - HIVEUSDT
+    - ONGUSDT
+    - RONINUSDT
+    # - REIUSDT # 已退市
+    # - PERPUSDT  # 已退市
+    - STEEMUSDT
+    - XVSUSDT
+    # - FLUXUSDT # tick_size变化 2026-02-27 07:00 (UTC)
+    - LSKUSDT
+    - OXTUSDT
+    # - POWRUSDT # tick_size变化 2025-12-22 07:00 (UTC)
+    # - WAXPUSDT # tick_size变化 2025-12-22 07:00 (UTC)
+    - RIFUSDT
+    # - QUICKUSDT # 已退市
+  # start_date: "2026-03-01"
+  start_date: "2026-03-18"
+  end_date: "2026-04-09"
   use_prev_day: true
   incremental_features_label: true
   incremental_features_max_retries: 2
@@ -93,10 +346,10 @@ train:
   train_days: 7
   val_days: 1
   test_days: 1
-  incremental: false
+  incremental: true
   max_retries: 2
   lgb_params:
-    n_jobs: 30
+    n_jobs: 50
     objective: "regression"
     num_leaves: 64
     max_depth: 8

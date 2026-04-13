@@ -504,6 +504,10 @@ if __name__ == "__main__":
     features_output_dir = Path(research_cfg["output_root"]) / research_cfg["features_output_dir"]
     features_output_dir.mkdir(parents=True, exist_ok=True)
 
+    log_dir = Path(research_cfg["log_dir"]) / datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    logger.add(log_dir / "features_label.log", rotation="100 MB", level=config["logging"]["level"])
+
     # 验证记录文件
     verified_csv = str(features_output_dir / "verified_records.csv")
     verified_records = load_verified_records(verified_csv)
