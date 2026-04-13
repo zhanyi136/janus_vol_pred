@@ -318,7 +318,7 @@ execution:
     # - QUICKUSDT # 已退市
   # start_date: "2026-03-01"
   start_date: "2026-03-18"
-  end_date: "2026-04-09"
+  end_date: "2026-04-12"
   use_prev_day: true
   incremental_features_label: true
   incremental_features_max_retries: 2
